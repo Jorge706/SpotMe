@@ -1,0 +1,44 @@
+changelog:
+  categories:
+    - title: 🚀 Features
+      labels:
+        - feature
+    - title: 🐞 Bug Fixes
+      labels:
+        - fix_
+        - bug
+    - title: 📚 Documentation
+      labels:
+        - docs_
+        - documentation
+    - title: 🧪 Tests
+      labels:
+        - test_
+        - tests
+    - title: 💄 Styles
+      labels:
+        - style_
+        - styles
+    - title: 🔧 Chores
+      labels:
+        - chore_
+        - maintenance
+    - title: 🏗️ Build
+      labels:
+        - build_
+    - title: 🔄 CI/CD
+      labels:
+        - ci_
+    - title: ♻️ Refactor
+      labels:
+        - refactor_
+    - title: ⚡ Performance
+      labels:
+        - perf_
+    - title: 🔧 Others
+      labels:
+        - other
+  sort: DESC
+  exclude:
+    labels:
+      - ignore

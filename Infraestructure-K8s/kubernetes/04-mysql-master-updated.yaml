@@ -1,0 +1,161 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-master-pvc
+  namespace: spotme
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: managed-csi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-master
+  namespace: spotme
+  labels:
+    app: mysql-master
+    component: database
+    tier: master
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mysql-master
+  template:
+    metadata:
+      labels:
+        app: mysql-master
+        component: database
+        tier: master
+    spec:
+      securityContext:
+        fsGroup: 999 # Asegura que los volúmenes montados sean propiedad del GID 999 (usuario 'mysql')
+        runAsUser: 999 # Opcional, pero buena práctica para asegurar que el proceso corre como el usuario 'mysql'
+
+      containers:
+      - name: mysql-master
+        image: mysql:8.0
+        ports:
+        - containerPort: 50450
+          name: mysql-tls # Nombre que indica que es el puerto TLS
+          protocol: TCP
+        env:
+        # Contraseñas inyectadas como variables de entorno desde el Secret
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spotme-secrets
+              key: DB_ROOT_PASSWORD
+        - name: MYSQL_DATABASE
+          value: "spotme" # Base de datos inicial a crear por MySQL
+        - name: MYSQL_USER
+          value: "spotme_user" # Usuario inicial a crear por MySQL
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spotme-secrets
+              key: DB_USER_PASSWORD
+
+
+
+        # Removemos completamente el bloque 'command' complejo.
+        # MySQL usará su entrypoint oficial y los scripts/configs montados.
+        # command: ["docker-entrypoint.sh"]
+        # args: ["mysqld", "--user=mysql"] # Estas son las args por defecto, puedes dejarlas o quitarlas
+
+        volumeMounts:
+        - name: mysql-master-storage
+          mountPath: /var/lib/mysql
+        - name: mysql-config-vol
+          mountPath: /etc/mysql/conf.d/mysql-master.cnf
+          subPath: mysql-master.cnf
+          readOnly: true
+        - name: mysql-ssl-certs-vol
+          mountPath: /etc/mysql/ssl
+          readOnly: true
+        - name: mysql-init-scripts-vol
+          mountPath: /docker-entrypoint-initdb.d
+          readOnly: true
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "400m"
+        
+        livenessProbe:
+          exec:
+            command:
+            - mysqladmin
+            - ping
+            - -h
+            - localhost
+            - -u
+            - root
+            - -p$(MYSQL_ROOT_PASSWORD)
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+        
+        readinessProbe:
+          exec:
+            command:
+            - mysqladmin
+            - ping
+            - -h
+            - localhost
+            - -u
+            - root
+            - -p$(MYSQL_ROOT_PASSWORD)
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+      
+      volumes:
+      - name: mysql-master-storage
+        persistentVolumeClaim:
+          claimName: mysql-master-pvc
+      - name: mysql-config-vol
+        configMap:
+          name: mysql-master-config
+      - name: mysql-ssl-certs-vol
+        secret:
+          secretName: spotme-secrets # Tu Secret que contiene los certs
+          defaultMode: 0400
+          items:
+          - key: DB_SSL_CERT
+            path: server-cert.pem
+          - key: DB_SSL_KEY
+            path: server-key.pem
+          - key: DB_SSL_CA
+            path: ca.pem
+      - name: mysql-init-scripts-vol
+        configMap:
+          name: mysql-master-init-scripts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-master-service
+  namespace: spotme
+  labels:
+    app: mysql-master
+    component: database
+    tier: master
+spec:
+  type: ClusterIP # Cambia a ClusterIP si no necesitas acceso externo
+  ports:
+  - port: 50450
+    targetPort: 50450
+    protocol: TCP
+    name: mysql-tls # Nombre del puerto indicando que es TLS
+  selector:
+    app: mysql-master

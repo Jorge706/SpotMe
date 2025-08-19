@@ -1,0 +1,40 @@
+name: Auto-enable Automerge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable-automerge:
+    runs-on: ubuntu-latest
+    name: "Habilitar Auto-merge"
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Enable auto-merge
+        run: |
+          echo "🤖 Habilitando auto-merge para PR #${{ github.event.pull_request.number }}"
+          gh pr merge ${{ github.event.pull_request.number }} --auto --squash
+          echo "✅ Auto-merge habilitado exitosamente"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Add comment
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body "🤖 **Auto-merge habilitado automáticamente**
+
+          Este PR se auto-mergeará cuando:
+          - ✅ Sea aprobado por un revisor
+          - ✅ Pasen todos los checks de status
+          - ✅ Se resuelvan todas las conversaciones
+          
+          ⚡ **Método de merge:** Squash and merge  
+          🗑️ **Eliminación:** La rama se eliminará automáticamente después del merge"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: spotme
+  labels:
+    app: frontend
+    component: frontend
+    tier: web
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        component: frontend
+        tier: web
+    spec:
+      containers:
+      - name: frontend
+        image: spotmeacr.azurecr.io/spotme-k8s-frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 50500
+          name: https
+          protocol: TCP
+
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d/default.conf
+          subPath: nginx.conf
+        - name: tls-certs
+          mountPath: /etc/nginx/ssl 
+          readOnly: true
+
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "100m"
+
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: frontend-nginx-config
+      - name: tls-certs
+        secret:
+          secretName: tls-secret
+          items:
+            - key: tls.crt
+              path: tls.crt
+            - key: tls.key
+              path: tls.key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: spotme
+  labels:
+    app: frontend
+    component: frontend
+    tier: web
+spec:
+  type: ClusterIP
+  ports:
+  - port: 50500
+    targetPort: 50500
+    protocol: TCP
+    name: https
+  selector:
+    app: frontend
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-nginx-config
+  namespace: spotme
+data:
+  nginx.conf: |
+   server {
+        listen 50500 ssl;
+        server_name spotme.jafetguzman.me;
+
+        
+        ssl_certificate /etc/nginx/ssl/tls.crt;
+        ssl_certificate_key /etc/nginx/ssl/tls.key;
+
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: https://*.tile.openstreetmap.org https://unpkg.com https://raw.githubusercontent.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; frame-src 'self' https://www.google.com https://www.youtube.com; connect-src 'self' https://spotme.jafetguzman.me wss://ws-us2.pusher.com;" always;
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        location /health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+        
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+        try_files $uri =404;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+      }
+    }

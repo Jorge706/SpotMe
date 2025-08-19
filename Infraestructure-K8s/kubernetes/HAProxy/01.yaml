@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-config
+  namespace: spotme
+data:
+  haproxy.cfg: |
+    global
+      log stdout format raw local0
+
+    defaults
+      log     global
+      mode    tcp
+      timeout connect 10s
+      timeout client  1m
+      timeout server  1m
+
+    frontend mysql-master-frontend
+      bind *:50450
+      default_backend mysql-master
+
+    frontend mysql-replica-frontend
+      bind *:50460
+      default_backend mysql-replica
+
+    backend mysql-master
+      server mysql-master-service mysql-master-service:50450 check
+
+    backend mysql-replica
+      server mysql-replica-service mysql-replica-service:50460 check
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: haproxy-mysql
+  namespace: spotme
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: haproxy-mysql
+  template:
+    metadata:
+      labels:
+        app: haproxy-mysql
+    spec:
+      containers:
+      - name: haproxy
+        image: haproxy:2.8
+        volumeMounts:
+        - name: haproxy-config
+          mountPath: /usr/local/etc/haproxy/
+        ports:
+        - containerPort: 50450
+        - containerPort: 50460
+      volumes:
+      - name: haproxy-config
+        configMap:
+          name: haproxy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-lb
+  namespace: spotme
+spec:
+  type: LoadBalancer
+  selector:
+    app: haproxy-mysql
+  ports:
+  - name: mysql-master
+    port: 50450
+    targetPort: 50450
+    protocol: TCP
+  - name: mysql-replica
+    port: 50460
+    targetPort: 50460
+    protocol: TCP

@@ -1,0 +1,111 @@
+#
+# Archivo: nginx-proxy.yaml
+# Descripción: Configuración de Nginx para actuar como proxy HTTP a un servicio HTTPS
+#              en Cloudflare, junto con un Deployment y un Service de tipo LoadBalancer.
+#
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-proxy-config
+  namespace: default
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name _;
+
+        # Enable access logs for debugging
+        access_log /var/log/nginx/access.log;
+        error_log /var/log/nginx/error.log debug;
+
+        location / {
+            # Proxy pass a tu dominio en Cloudflare
+            proxy_pass https://spotme.jafetguzman.me;
+
+            # Headers para el proxy
+            proxy_set_header Host spotme.jafetguzman.me;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $server_name;
+            
+            # SSL configuration
+            proxy_ssl_server_name on;
+            proxy_ssl_verify off;  # Disable SSL verification for external domains
+            proxy_ssl_protocols TLSv1.2 TLSv1.3;
+            
+            # Tiempos de espera para conexiones inestables (IoT)
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+            
+            # Buffer settings
+            proxy_buffering on;
+            proxy_buffer_size 128k;
+            proxy_buffers 4 256k;
+            proxy_busy_buffers_size 256k;
+            
+            # Follow redirects
+            proxy_redirect off;
+        }
+
+        # Health check endpoint
+        location /health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-proxy-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-proxy
+  template:
+    metadata:
+      labels:
+        app: nginx-proxy
+    spec:
+      containers:
+      - name: nginx-proxy-container
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "250m"
+            memory: "256Mi"
+        volumeMounts:
+        - name: nginx-config-volume
+          mountPath: /etc/nginx/conf.d
+      volumes:
+      - name: nginx-config-volume
+        configMap:
+          name: nginx-proxy-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-proxy-service
+  namespace: default
+spec:
+  selector:
+    app: nginx-proxy
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: LoadBalancer
