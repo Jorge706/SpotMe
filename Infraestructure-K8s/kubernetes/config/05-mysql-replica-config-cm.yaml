@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-replica-config
+  namespace: spotme
+data:
+  mysql-replica.cnf: |
+    [mysqld]
+    # Configuración del servidor
+    server-id=2
+    log-bin=mysql-bin
+    binlog-format=ROW
+    port=50460
+    bind-address=0.0.0.0
+    general_log_file = /var/lib/mysql/mysql.log # Ruta donde se guardará el log
+    general_log = 1          
+
+    # Configuración SSL/TLS: Apuntan a los certificados montados desde el Secret
+    ssl-cert=/etc/mysql/ssl/server-replica-cert.pem
+    ssl-key=/etc/mysql/ssl/server-replica-key.pem
+    ssl-ca=/etc/mysql/ssl/ca.pem
+    ssl-capath=/etc/mysql/ssl/
+    require_secure_transport=ON
+    tls_version=TLSv1.2,TLSv1.3
+    
+    # Configuración de replicación
+    gtid-mode=ON
+    enforce-gtid-consistency=ON
+    log-replica-updates=ON
+    replicate-do-db=spotme
+    
+    # Configuración de rendimiento
+    max_connections=500
+    innodb_buffer_pool_size=256M # Ajusta según la RAM asignada y la carga de trabajo
+    
+    # Configuración de seguridad
+    local-infile=0
+    secure-file-priv=/var/lib/mysql-files
+    
+    # Directorios
+    pid-file=/var/run/mysqld/mysqld.pid
+    socket=/var/run/mysqld/mysqld.sock

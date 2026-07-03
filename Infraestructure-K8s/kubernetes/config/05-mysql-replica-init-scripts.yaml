@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-replica-init-scripts
+  namespace: spotme
+data:
+  99-setup-replica.sh: |
+    #!/bin/bash
+    
+    # Este script se ejecutará SOLO si el PVC está vacío en la primera inicialización.
+    # El docker-entrypoint.sh de MySQL ejecuta scripts .sh y .sql en /docker-entrypoint-initdb.d.
+    
+    # Variables de entorno ya disponibles en el Pod:
+    # MYSQL_ROOT_PASSWORD
+    # MYSQL_REPLICATION_PASSWORD
+    
+    echo "Waiting for master MySQL to accept SQL connections..."
+    until mysql -h mysql-master-service -P 50450 -u replicator -p"$MYSQL_REPLICATION_PASSWORD" --ssl --ssl-ca=/etc/mysql/ssl/ca.pem -e "SELECT 1;" > /dev/null 2>&1; do
+      echo "Still waiting for master MySQL SQL readiness..."
+      sleep 5
+    done
+    echo "Master MySQL is ready for SQL connections."
+
+    echo "Configuring users and replication..."
+    
+    # Primero configurar el usuario de aplicación con mysql_native_password
+    mysql -u root -p"$MYSQL_ROOT_PASSWORD" << EOSQL
+    -- Crear usuario de aplicación compatible con MariaDB client
+    DROP USER IF EXISTS 'spotme_user'@'%';
+    CREATE USER 'spotme_user'@'%' IDENTIFIED WITH mysql_native_password BY 'CHANGE_ME';
+    GRANT ALL PRIVILEGES ON spotme.* TO 'spotme_user'@'%';
+    FLUSH PRIVILEGES;
+    
+    -- Configurar la replicación al master con SSL
+    CHANGE REPLICATION SOURCE TO
+        SOURCE_HOST = 'mysql-master-service',
+        SOURCE_PORT = 50450,
+        SOURCE_USER = 'replicator',
+        SOURCE_PASSWORD = '$MYSQL_REPLICATION_PASSWORD',
+        SOURCE_AUTO_POSITION = 1,
+        SOURCE_SSL = 1,
+        SOURCE_SSL_CA = '/etc/mysql/ssl/ca.pem',
+        SOURCE_SSL_CERT = '/etc/mysql/ssl/server-replica-cert.pem',
+        SOURCE_SSL_KEY = '/etc/mysql/ssl/server-replica-key.pem';
+    
+    START REPLICA;
+    EOSQL
+    
+    echo "Replication configured and started. Checking status..."
+    mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SHOW REPLICA STATUS\\G"
+    echo "Replication setup script finished."

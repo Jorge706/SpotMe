@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-master-config
+  namespace: spotme
+data:
+  mysql-master.cnf: |
+    [mysqld]
+    # Configuración del servidor
+    server-id=1
+    log-bin=mysql-bin
+    binlog-format=ROW
+    port=50450
+    bind-address=0.0.0.0
+    general_log_file = /var/lib/mysql/mysql.log # Ruta donde se guardará el log
+    general_log = 1          
+
+    # Configuración SSL/TLS: Apuntan a los certificados montados desde el Secret
+    ssl-cert=/etc/mysql/ssl/server-cert.pem
+    ssl-key=/etc/mysql/ssl/server-key.pem
+    ssl-ca=/etc/mysql/ssl/ca.pem
+    ssl-capath=/etc/mysql/ssl/
+    require_secure_transport=ON # <--- ¡IMPORTANTE: Fuerza el uso de TLS para todas las conexiones!
+    tls_version=TLSv1.2,TLSv1.3
+    
+    # Configuración de replicación
+    gtid-mode=ON
+    enforce-gtid-consistency=ON
+    log-replica-updates=ON
+    # binlog-do-db=spotme # Considera usar 'replicate-do-db' en las réplicas en lugar de aquí si tienes operaciones entre bases de datos.
+    
+    # Configuración de rendimiento
+    max_connections=500
+    innodb_buffer_pool_size=256M # Ajusta según la RAM asignada y la carga de trabajo
+    
+    # Configuración de seguridad
+    local-infile=0
+    secure-file-priv=/var/lib/mysql-files
+    
+    # Directorios
+    pid-file=/var/run/mysqld/mysqld.pid
+    socket=/var/run/mysqld/mysqld.sock

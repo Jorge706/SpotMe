@@ -1,0 +1,23 @@
+# Etiquetas basadas en nombres de branches
+feature:
+  - head-branch: ['^feat_.*']
+
+
+fix:
+  - head-branch: ['^fix_.*']
+
+
+chore:
+  - head-branch: ['^chore_.*']
+
+
+docs:
+  - head-branch: ['^doc_.*']
+
+
+test:
+  - head-branch: ['^test_.*']
+
+
+style:
+  - head-branch: ['^style_.*']

@@ -1,0 +1,103 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spotme-ingress-frontend
+  namespace: spotme
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - spotme.jafetguzman.me
+      secretName: cloudflare-ssl
+  rules:
+    - host: spotme.jafetguzman.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-service
+                port:
+                  number: 50500
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spotme-ingress-original-apis
+  namespace: spotme
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://spotme.jafetguzman.me"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - spotme.jafetguzman.me
+      secretName: cloudflare-ssl
+  rules:
+    - host: spotme.jafetguzman.me
+      http:
+        paths:
+          - path: /users(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: users-api-service
+                port:
+                  number: 50350
+
+          - path: /tracking(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: tracking-api-service
+                port:
+                  number: 50351
+
+---
+# Ingress para nuevas rutas del frontend (con rewrite a /api/)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spotme-ingress-frontend-apis
+  namespace: spotme
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /api/$2
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://spotme.jafetguzman.me"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - spotme.jafetguzman.me
+      secretName: cloudflare-ssl
+  rules:
+    - host: spotme.jafetguzman.me
+      http:
+        paths:
+          - path: /user-api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: users-api-service
+                port:
+                  number: 50350
+
+          - path: /tracking-api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: tracking-api-service
+                port:
+                  number: 50351

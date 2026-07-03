@@ -1,0 +1,206 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-replica-pvc
+  namespace: spotme
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: managed-csi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-replica
+  namespace: spotme
+  labels:
+    app: mysql-replica
+    component: database
+    tier: replica
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # Recreate es bueno para réplicas si algo va mal y necesitas un reset limpio
+  selector:
+    matchLabels:
+      app: mysql-replica
+  template:
+    metadata:
+      labels:
+        app: mysql-replica
+        component: database
+        tier: replica
+    spec:
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+      # InitContainer para limpiar relay logs corruptos y configuración de replicación
+      initContainers:
+      - name: cleanup-relay-logs
+        image: mysql:8.0
+        command:
+        - /bin/bash
+        - -c
+        - |
+          echo "=== Limpiando relay logs y configuración de replicación ==="
+          # Limpiar relay logs que puedan estar corruptos
+          rm -f /var/lib/mysql/relay-log*
+          rm -f /var/lib/mysql/*relay-bin*
+          rm -f /var/lib/mysql/master.info
+          rm -f /var/lib/mysql/relay-log.info
+          # Limpiar archivos de configuración de replicación
+          rm -f /var/lib/mysql/mysql.slave_master_info
+          rm -f /var/lib/mysql/mysql.slave_relay_log_info
+          # Limpiar GTIDs específicos del pod anterior
+          rm -f /var/lib/mysql/auto.cnf
+          echo "=== Limpieza completada ==="
+        volumeMounts:
+        - name: mysql-replica-storage
+          mountPath: /var/lib/mysql
+      containers:
+      - name: mysql-replica
+        image: mysql:8.0
+        ports:
+        - containerPort: 50460
+          name: mysql-tls
+          protocol: TCP
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spotme-secrets
+              key: DB_ROOT_PASSWORD
+        - name: MYSQL_DATABASE
+          value: "spotme"
+        - name: MYSQL_USER
+          value: "spotme_user"
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spotme-secrets
+              key: DB_USER_PASSWORD
+        # La contraseña del usuario 'replicator' es CRÍTICA para que la réplica se conecte al maestro
+        - name: MYSQL_REPLICATION_USER # ¡Asegúrate de que esta variable también esté!
+          value: "replicator"
+        - name: MYSQL_REPLICATION_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spotme-secrets
+              key: DB_REPLICA_PASSWORD
+
+        volumeMounts:
+        - name: mysql-replica-storage
+          mountPath: /var/lib/mysql
+        - name: mysql-replica-config-vol
+          mountPath: /etc/mysql/conf.d/mysql-replica.cnf # ¡CAMBIADO! Ruta y nombre del archivo de configuración
+          subPath: mysql-replica.cnf # ¡CAMBIADO! Nombre del archivo dentro del ConfigMap
+          readOnly: true
+        - name: mysql-ssl-certs-vol
+          mountPath: /etc/mysql/ssl 
+          readOnly: true
+        
+        resources:
+          requests:
+            memory: "256Mi"    # Reducido de 512Mi a 256Mi
+            cpu: "100m"        # Reducido de 250m a 100m
+          limits:
+            memory: "512Mi"    # Reducido de 1Gi a 512Mi
+            cpu: "200m"        # Reducido de 400m a 200m
+        
+        livenessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - |
+              mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASSWORD
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          exec:
+            command:
+            - mysqladmin
+            - ping
+            - -h
+            - localhost
+            - -u
+            - root
+            - -p$(MYSQL_ROOT_PASSWORD)
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+      # Sidecar container para configurar replicación automáticamente
+      - name: replication-setup
+        image: mysql:8.0
+        command:
+        - /bin/bash
+        - /scripts/setup-replication.sh
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spotme-secrets
+              key: DB_ROOT_PASSWORD
+        volumeMounts:
+        - name: mysql-init-replica-scripts-vol
+          mountPath: /scripts
+        - name: mysql-ssl-certs-vol
+          mountPath: /etc/mysql/ssl 
+          readOnly: true
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      
+      volumes:
+      - name: mysql-replica-storage
+        persistentVolumeClaim:
+          claimName: mysql-replica-pvc
+      - name: mysql-replica-config-vol # ¡CAMBIADO! Nuevo ConfigMap para la réplica
+        configMap:
+          name: mysql-replica-config # ¡NUEVO! Este ConfigMap debes crearlo
+      - name: mysql-ssl-certs-vol
+        secret:
+          secretName: spotme-secrets-replica
+          defaultMode: 0400
+          items:
+          - key: DB_SSL_CERT
+            path: server-replica-cert.pem
+          - key: DB_SSL_KEY
+            path: server-replica-key.pem
+          - key: DB_SSL_CA
+            path: ca.pem
+      - name: mysql-init-replica-scripts-vol # ¡NUEVO! ConfigMap para scripts de réplica
+        configMap:
+          name: mysql-replica-init-scripts
+          defaultMode: 0755
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-replica-service
+  namespace: spotme
+  labels:
+    app: mysql-replica
+    component: database
+    tier: replica
+spec:
+  type: ClusterIP # La réplica suele ser interna
+  ports:
+  - port: 50460
+    targetPort: 50460
+    protocol: TCP
+    name: mysql-tls
+  selector:
+    app: mysql-replica

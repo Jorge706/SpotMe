@@ -1,0 +1,6 @@
+*.pbxproj merge = union
+*.xcuserstate merge = union
+*.json merge = union
+*.storyboard merge = union
+*.plist merge = union
+*.swift merge = union

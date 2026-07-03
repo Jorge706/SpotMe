@@ -1,0 +1,28 @@
+[submodule "API-Tracking-Laravel"]
+	path = API-Tracking-Laravel
+	branch = main
+	url = https://github.com/Jorge706/SpotMe-API-Tracking-Laravel.git
+[submodule "API-Users-Laravel"]
+	path = API-Users-Laravel
+	branch = main
+	url = https://github.com/Jorge706/SpotMe-API-Users-Laravel.git
+[submodule "Firmware"]
+	path = Firmware
+	branch = main
+	url = https://github.com/Jorge706/SpotMe-Firmware.git
+[submodule "Front-Electron"]
+	path = Front-Electron
+	branch = main
+	url = https://github.com/Jorge706/SpotMe-Front-Electron.git
+[submodule "Infraestructure-K8s"]
+	path = Infraestructure-K8s
+	branch = main
+	url = https://github.com/Jorge706/SpotMe-Infra-K8s.git
+[submodule "Movil-IOS"]
+	path = Movil-IOS
+	branch = main
+	url = https://github.com/Jorge706/SpotMe-Movil-IOS.git
+[submodule "WEB-React"]
+	path = WEB-React
+	branch = main
+	url = https://github.com/Jorge706/SpotMe-WEB-React.git
