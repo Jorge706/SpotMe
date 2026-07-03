@@ -1,0 +1,51 @@
+# Branch Protection Rules Configuration
+# This file documents the recommended branch protection settings
+# Apply these rules manually in GitHub Settings > Branches
+
+main:
+  protection_rules:
+    # Require pull request reviews before merging
+    required_status_checks:
+      strict: true
+      contexts:
+        - "CI / build-and-test"
+        - "CI / lint"
+        - "CI / security-scan"
+        - "codecov/patch"
+    
+    # Require pull request reviews
+    required_pull_request_reviews:
+      required_approving_review_count: 1
+      dismiss_stale_reviews: true
+      require_code_owner_reviews: true
+      restrict_dismissals: false
+    
+    # Additional protections
+    enforce_admins: false
+    restrictions: null
+    allow_force_pushes: false
+    allow_deletions: false
+    required_linear_history: true
+    
+    # Require signed commits
+    required_signatures: true
+    
+    # Require conversation resolution before merging
+    required_conversation_resolution: true
+
+develop:
+  protection_rules:
+    required_status_checks:
+      strict: true
+      contexts:
+        - "CI / build-and-test"
+        - "CI / lint"
+    
+    required_pull_request_reviews:
+      required_approving_review_count: 1
+      dismiss_stale_reviews: true
+      require_code_owner_reviews: false
+    
+    enforce_admins: false
+    allow_force_pushes: false
+    allow_deletions: false

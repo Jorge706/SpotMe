@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spotme
+  labels:
+    name: spotme
+    environment: production

@@ -1,0 +1,110 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-replica-config
+  namespace: spotme
+data:
+  mysql-replica.cnf: |
+    [mysqld]
+    # Configuración del servidor
+    server-id=2
+    log-bin=mysql-bin
+    binlog-format=ROW
+    port=50460
+    bind-address=0.0.0.0
+    general_log_file = /var/lib/mysql/mysql.log
+    general_log = 1          
+
+    # Configuración SSL/TLS: Apuntan a los certificados montados desde el Secret
+    ssl-cert=/etc/mysql/ssl/server-replica-cert.pem
+    ssl-key=/etc/mysql/ssl/server-replica-key.pem
+    ssl-ca=/etc/mysql/ssl/ca.pem
+    ssl-capath=/etc/mysql/ssl/
+    require_secure_transport=ON
+    tls_version=TLSv1.2,TLSv1.3
+    
+    # Configuración de replicación - MEJORADA
+    gtid-mode=ON
+    enforce-gtid-consistency=ON
+    log-replica-updates=ON
+    replicate-do-db=spotme
+    
+    # Configuración específica para relay logs
+    relay-log=replica-relay-bin
+    relay-log-index=replica-relay-bin.index
+    relay-log-recovery=ON
+    
+    # Configuración de rendimiento
+    max_connections=500
+    innodb_buffer_pool_size=256M
+    
+    # Configuración de seguridad
+    local-infile=0
+    secure-file-priv=/var/lib/mysql-files
+    
+    # Directorios
+    pid-file=/var/run/mysqld/mysqld.pid
+    socket=/var/run/mysqld/mysqld.sock
+    
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-replica-init-scripts
+  namespace: spotme
+data:
+  setup-replication.sh: |
+    #!/bin/bash
+    
+    echo "=== Iniciando configuración de replicación ==="
+    
+    # Esperar a que MySQL esté listo
+    until mysql -u root -p$MYSQL_ROOT_PASSWORD -e "SELECT 1" >/dev/null 2>&1; do
+      echo "Esperando que MySQL esté listo..."
+      sleep 3
+    done
+    
+    echo "=== MySQL está listo, configurando replicación ==="
+    
+    # Verificar si la replicación ya está configurada y funcionando
+    SLAVE_STATUS=$(mysql -u root -p$MYSQL_ROOT_PASSWORD -e "SHOW SLAVE STATUS\G" 2>/dev/null)
+    
+    if echo "$SLAVE_STATUS" | grep -q "Slave_IO_Running: Yes" && echo "$SLAVE_STATUS" | grep -q "Slave_SQL_Running: Yes"; then
+      echo "=== Replicación ya está funcionando correctamente ==="
+      exit 0
+    fi
+    
+    echo "=== Configurando replicación desde cero ==="
+    
+    # Detener cualquier replicación existente
+    mysql -u root -p$MYSQL_ROOT_PASSWORD -e "STOP SLAVE;" 2>/dev/null || true
+    mysql -u root -p$MYSQL_ROOT_PASSWORD -e "RESET SLAVE ALL;" 2>/dev/null || true
+    
+    # Configurar la replicación
+    mysql -u root -p$MYSQL_ROOT_PASSWORD -e "
+    CHANGE MASTER TO 
+    MASTER_HOST='mysql-master-service.spotme.svc.cluster.local',
+    MASTER_PORT=50450,
+    MASTER_USER='replicator',
+    MASTER_PASSWORD='CHANGE_ME',
+    MASTER_AUTO_POSITION=1,
+    MASTER_SSL=1,
+    MASTER_SSL_CA='/etc/mysql/ssl/ca.pem',
+    MASTER_SSL_CERT='/etc/mysql/ssl/server-replica-cert.pem',
+    MASTER_SSL_KEY='/etc/mysql/ssl/server-replica-key.pem';
+    "
+    
+    # Iniciar la replicación
+    mysql -u root -p$MYSQL_ROOT_PASSWORD -e "START SLAVE;"
+    
+    # Verificar que la replicación esté funcionando
+    sleep 5
+    FINAL_STATUS=$(mysql -u root -p$MYSQL_ROOT_PASSWORD -e "SHOW SLAVE STATUS\G" 2>/dev/null)
+    
+    if echo "$FINAL_STATUS" | grep -q "Slave_IO_Running: Yes" && echo "$FINAL_STATUS" | grep -q "Slave_SQL_Running: Yes"; then
+      echo "=== ¡Replicación configurada exitosamente! ==="
+    else
+      echo "=== ERROR: La replicación no se pudo configurar correctamente ==="
+      echo "$FINAL_STATUS"
+      exit 1
+    fi

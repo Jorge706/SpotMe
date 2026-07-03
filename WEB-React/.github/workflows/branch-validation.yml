@@ -1,0 +1,97 @@
+name: Branch Naming Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  validate-branch-name:
+    runs-on: ubuntu-latest
+    name: "Validar Nombre de Rama"
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Validar convención de nombres
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "🔍 Validando nombre de rama: $BRANCH_NAME"
+          
+          # Patrones válidos
+          VALID_PREFIXES="^(feat|fix|chore|doc|test|style)_"
+          
+          if [[ $BRANCH_NAME =~ $VALID_PREFIXES ]]; then
+            echo "✅ Nombre de rama válido: $BRANCH_NAME"
+            echo "✅ Cumple con las convenciones del proyecto"
+          else
+            echo "❌ Nombre de rama INVÁLIDO: $BRANCH_NAME"
+            echo ""
+            echo "🚫 El nombre de la rama NO cumple con las convenciones del proyecto."
+            echo ""
+            echo "📋 Formatos válidos:"
+            echo "   • feat_descripcion     - Nueva funcionalidad"
+            echo "   • fix_descripcion      - Corrección de errores"
+            echo "   • chore_descripcion    - Tareas de mantenimiento"
+            echo "   • doc_descripcion      - Cambios en documentación"
+            echo "   • test_descripcion     - Añadir o modificar pruebas"
+            echo "   • style_descripcion    - Cambios de formato/estilos"
+            echo ""
+            echo "💡 Ejemplos correctos:"
+            echo "   • feat_nuevo-login"
+            echo "   • fix_error-validacion"
+            echo "   • chore_update-deps"
+            echo "   • doc_api-guide"
+            echo ""
+            echo "🔧 Para corregir:"
+            echo "   1. Crea una nueva rama con el formato correcto"
+            echo "   2. Haz cherry-pick de tus commits a la nueva rama"
+            echo "   3. Cierra este PR y crea uno nuevo desde la rama correcta"
+            echo ""
+            exit 1
+          fi
+      
+      - name: Comentar en PR si es inválido
+        if: failure()
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          gh pr comment ${{ github.event.pull_request.number }} --body "🚫 **Nombre de rama inválido**
+          
+          La rama \`$BRANCH_NAME\` no cumple con las convenciones del proyecto.
+          
+          ## 📋 Formatos válidos:
+          - \`feat_descripcion\` - Nueva funcionalidad
+          - \`fix_descripcion\` - Corrección de errores  
+          - \`chore_descripcion\` - Tareas de mantenimiento
+          - \`doc_descripcion\` - Cambios en documentación
+          - \`test_descripcion\` - Añadir o modificar pruebas
+          - \`style_descripcion\` - Cambios de formato/estilos
+          
+          ## 💡 Ejemplos correctos:
+          - \`feat_nuevo-login\`
+          - \`fix_error-validacion\` 
+          - \`chore_update-deps\`
+          
+          ## 🔧 Para corregir:
+          1. Crea una nueva rama con el formato correcto
+          2. Haz cherry-pick de tus commits a la nueva rama
+          3. Cierra este PR y crea uno nuevo
+          
+          ❌ **Este PR será bloqueado hasta que se corrija el nombre de la rama.**"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Comentar en PR si es válido
+        if: success()
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          gh pr comment ${{ github.event.pull_request.number }} --body "✅ **Nombre de rama válido**
+          
+          La rama \`$BRANCH_NAME\` cumple con las convenciones del proyecto. ¡Buen trabajo! 🎉"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

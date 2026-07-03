@@ -1,0 +1,46 @@
+name: Deploy Users API to Kubernetes
+
+on:
+  push:
+    branches: [ main ]  
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: Development
+
+    env:
+      REGISTRY: spotmeacr.azurecr.io
+      IMAGE_NAME: spotme-k8s-users-api
+      NAMESPACE: spotme
+      SERVICE_NAME: users-api
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to Azure CLI
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Azure ACR login
+        run: az acr login --name spotmeacr
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t $REGISTRY/$IMAGE_NAME:latest .
+          docker push $REGISTRY/$IMAGE_NAME:latest
+
+      - name: Set up Kubeconfig
+        uses: azure/aks-set-context@v3
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          cluster-name: kubernetes-spotme-cluster
+          resource-group: kubernetes-group-spotme
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl rollout restart deployment $SERVICE_NAME -n $NAMESPACE
+          kubectl rollout status deployment $SERVICE_NAME -n $NAMESPACE
