@@ -1,12 +1,24 @@
-# React + Vite
+# SpotMe — Web Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Live-tracking web dashboard for the SpotMe platform: watch vehicle positions update in real time, manage devices, and review trips from the browser.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Real-time positions** — subscribes to trip and location events over **Pusher (WebSockets)**; no polling.
+- **Trip & device views** — browse active and historical trips reported by the Tracking API.
+- **Authenticated access** — JWT-based sessions against the Users API, with reCAPTCHA on sign-in.
 
-## Expanding the ESLint configuration
+## Stack
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+React 19 · Vite · React Router 7 · pusher-js
+
+## Running locally
+
+```bash
+npm install
+npm run dev       # development server (vite.config.dev.js)
+npm run build     # production build (vite.config.prod.js)
+npm run lint      # eslint
+```
+
+Part of the [SpotMe monorepo](https://github.com/Jorge706/SpotMe) — see the root README for the full architec

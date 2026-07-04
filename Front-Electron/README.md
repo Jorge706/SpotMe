@@ -1,31 +1,22 @@
-# SpotMe - Aplicación Electron
+# SpotMe — Desktop Client (Electron)
 
-Una aplicación sencilla de escritorio creada con Electron que demuestra las funcionalidades básicas del framework.
+Cross-platform desktop client for the SpotMe tracking platform, built with Electron.
 
-## 🚀 Características
+## Features
 
-- **Interfaz moderna**: Diseño atractivo con gradientes y efectos de cristal
-- **Menús personalizados**: Menú de aplicación completo con atajos de teclado
-- **Gestión de archivos**: Simulación de apertura y guardado de archivos
-- **Notificaciones**: Sistema de notificaciones del escritorio
-- **Almacenamiento local**: Persistencia de datos usando localStorage
-- **Responsive**: Interfaz adaptable a diferentes tamaños de ventana
-- **Atajos de teclado**: Combinaciones útiles para mayor productividad
+- **Native desktop experience** — application menus, keyboard shortcuts, and desktop notifications.
+- **Monitoring-oriented UI** — designed for operators keeping a tracking dashboard open through the workday.
+- **Packaged with Electron Forge** — reproducible builds via `forge.config.js`.
 
-## 📦 Instalación
+## Stack
 
-1. Asegúrate de tener Node.js instalado
-2. Navega al directorio del proyecto
-3. Instala las dependencias (si es necesario):
-   ```bash
-   npm install
-   ```
+Electron · Node.js · Electron Forge
 
-## 🎮 Uso
-
-Para ejecutar la aplicación:
+## Running locally
 
 ```bash
+npm install
 npm run start
 ```
 
+Part of the [SpotMe monorepo](https://github.com/Jorge706/SpotMe) — see the root README for the full architecture.
